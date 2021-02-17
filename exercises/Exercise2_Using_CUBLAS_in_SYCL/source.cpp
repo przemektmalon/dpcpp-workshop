@@ -33,15 +33,10 @@ void inline checkCudaErrorMsg(cudaError status, const char *msg) {
 class CUDADeviceSelector : public sycl::device_selector {
 public:
   int operator()(const sycl::device &device) const override {
-    using namespace sycl::info;
-
-    const std::string DriverVersion = device.get_info<device::driver_version>();
-
-    if (device.is_gpu() && (DriverVersion.find("CUDA") != std::string::npos)) {
-      std::cout << " CUDA device found " << std::endl;
+    if (device.get_platform().get_backend() == sycl::backend::cuda)
       return 1;
-    };
-    return -1;
+    else 
+      return -1;
   }
 };
 

@@ -13,16 +13,11 @@
  */
 class CUDADeviceSelector : public sycl::device_selector {
 public:
-  int operator()(const sycl::device &Device) const override {
-    using namespace sycl::info;
-
-    const std::string DriverVersion = Device.get_info<device::driver_version>();
-
-    if (Device.is_gpu() && (DriverVersion.find("CUDA") != std::string::npos)) {
-      std::cout << " CUDA device found " << std::endl;
+  int operator()(const sycl::device &device) const override {
+    if (device.get_platform().get_backend() == sycl::backend::cuda)
       return 1;
-    };
-    return -1;
+    else
+      return -1;
   }
 };
 
@@ -44,10 +39,11 @@ int main(int argc, char *argv[]) {
 
   /**
    * Exercise:
-   * 
+   *
    * Implement an interop_task that calls the "vecAdd" CUDA kernel defined above
-   * 
+   *
    * The queue and buffers are already constructed and initialized.
+   *
    */
 
   sycl::device myCUDADevice{CUDADeviceSelector().select_device()};
@@ -99,6 +95,8 @@ int main(int argc, char *argv[]) {
         vecAdd<<<gridSize, blockSize>>>(dA, dB, dC, N);
       });
     });
+
+    myQueue.wait_and_throw();
 
     /**
      * Verification code provided

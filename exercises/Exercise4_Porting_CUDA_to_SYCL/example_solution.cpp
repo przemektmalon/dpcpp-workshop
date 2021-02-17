@@ -3,16 +3,10 @@
 class CUDADeviceSelector : public sycl::device_selector {
 public:
   int operator()(const sycl::device &device) const override {
-    using namespace sycl::info;
-
-    const std::string driverVersion = device.get_info<device::driver_version>();
-
-    if (device.is_gpu() && (driverVersion.find("CUDA") != std::string::npos)) {
-      std::cout << "CUDA device found\n";
+    if (device.get_platform().get_backend() == sycl::backend::cuda)
       return 1;
-    }
-
-    return -1;
+    else
+      return -1;
   }
 };
 
@@ -30,19 +24,25 @@ int main(int argc, char *argv[]) {
 
   /**
    * Exercise:
-   * 
+   *
    * Port the CUDA code in "cuda_matmul.cu" to SYCL
-   * 
+   *
    * Note that "cuda_matmul.cu" invoked a 2D kernel,
-   * in your SYCL code you may invoke `parallel_for` 
+   * in your SYCL code you may invoke `parallel_for`
    * with a sycl::nd_range<2>.
-   * 
+   *
    * sycl::nd_range consists of a global range, and a local range.
    * The global range must be divisible by the local range.
-   * 
+   *
+   * Make sure to implement error handling, otherwise your solution
+   * might fail silently.
+   *
+   * Once you have a working solution with error handling, you can try to break
+   * it to see what kinds of errors are thrown
+   *
    */
 
-  {
+  try {
     /* Create SYCL buffers corresponding to the host-side data vectors */
     const sycl::range<1> bufRange{N * N};
     sycl::buffer<float, 1> d_a{h_a.data(), bufRange};
@@ -64,29 +64,22 @@ int main(int argc, char *argv[]) {
 
       /* Define block size (work group local size) */
       int blockSize = 32;
-      /**
-       * Define global size.
-       * Rounding up to nearest multiple of blockSize, as the globalSize
-       * must be divisible by the blockSize.
-       */
-      int globalSize = N + blockSize - (N % blockSize);
 
-      /* Define the 2D group and global ranges */
-      auto groupRange = sycl::range<2>(blockSize, blockSize);
-      auto globalRange = sycl::range<2>(globalSize, globalSize);
+      /* Define the 2D local and global ranges */
+      auto localRange = sycl::range<2>(blockSize, blockSize);
+      auto globalRange =
+          localRange *
+          sycl::range<2>(ceil(double(N) / double(localRange.get(0))),
+                         ceil(double(N) / double(localRange.get(1))));
 
       /* Define the kernel's ND range */
-      auto kernelNDRange = sycl::nd_range<2>(globalRange, groupRange);
+      auto kernelNDRange = sycl::nd_range<2>(globalRange, localRange);
 
       /* Invoke the kernel using our kernel's ND range */
       h.parallel_for<class matmul>(kernelNDRange, [=](sycl::nd_item<2> ndItem) {
-
-        /* Calculate column and row */
-        int col = (ndItem.get_group(0) * ndItem.get_local_range(0)) +
-                  ndItem.get_local_id(0);
-
-        int row = (ndItem.get_group(1) * ndItem.get_local_range(1)) +
-                  ndItem.get_local_id(1);
+        /* Get column and row */
+        int col = ndItem.get_global_id(0);
+        int row = ndItem.get_global_id(1);
 
         /* Perform the multiplication */
         float sum = 0.f;
@@ -100,6 +93,13 @@ int main(int argc, char *argv[]) {
     };
 
     myQueue.submit(cg);
+
+    myQueue.wait_and_throw();
+
+  } catch (sycl::exception e) {
+    std::cout << "SYCL Exception Caught: " << e.what() << std::endl;
+  } catch (std::exception e) {
+    std::cout << "Non-SYCL Exception Caught: " << e.what() << std::endl;
   }
 
   /**

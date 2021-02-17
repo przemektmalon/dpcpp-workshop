@@ -3,16 +3,10 @@
 class CUDADeviceSelector : public sycl::device_selector {
 public:
   int operator()(const sycl::device &device) const override {
-    using namespace sycl::info;
-
-    const std::string driverVersion = device.get_info<device::driver_version>();
-
-    if (device.is_gpu() && (driverVersion.find("CUDA") != std::string::npos)) {
-      std::cout << "CUDA device found\n";
+    if (device.get_platform().get_backend() == sycl::backend::cuda)
       return 1;
-    }
-
-    return -1;
+    else 
+      return -1;
   }
 };
 
@@ -30,16 +24,22 @@ int main(int argc, char *argv[]) {
 
   /**
    * Exercise:
-   * 
+   *
    * Port the CUDA code in "cuda_matmul.cu" to SYCL
-   * 
+   *
    * Note that "cuda_matmul.cu" invoked a 2D kernel,
-   * in your SYCL code you may invoke `parallel_for` 
+   * in your SYCL code you may invoke `parallel_for`
    * with a sycl::nd_range<2>.
-   * 
+   *
    * sycl::nd_range consists of a global range, and a local range.
    * The global range must be divisible by the local range.
-   * 
+   *
+   * Make sure to implement error handling, otherwise your solution
+   * might fail silently.
+   *
+   * Once you have a working solution with error handling, you can try to break
+   * it to see what kinds of errors are thrown
+   *
    */
 
 

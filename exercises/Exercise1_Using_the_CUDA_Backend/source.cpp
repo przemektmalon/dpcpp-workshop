@@ -8,19 +8,9 @@
 class CUDADeviceSelector : public sycl::device_selector {
 public:
   int operator()(const sycl::device &device) const override {
-    using namespace sycl::info;
 
     /**
-     * Query information from the device that will identify it as a CUDA 
-     * device.
-     * The device driver version string could contain useful information
-     */ 
-
-    const std::string driverVersion;
-
-    /**
-     * Next, use the result of the query to score the device appropriately.
-     * We only want CUDA devices to be selected.
+     * Query the device's platform properties to determine which backend it uses.
      */
 
   }
